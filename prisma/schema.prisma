@@ -1,0 +1,110 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  name      String
+  email     String   @unique
+  password  String
+  role      String   @default("USER") // USER | ADMIN | BANNED
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Back-relation for Workspaces this user owns
+  ownedWorkspaces Workspace[]
+
+  // Memberships in workspaces
+  workspaces        WorkspaceMember[]
+  ProjectMembership ProjectMembership[]
+  TaskAssignee      TaskAssignee[]
+  Notification      Notification[]
+}
+
+
+
+model Workspace {
+  id        Int      @id @default(autoincrement())
+  name      String
+  ownerId   Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner   User              @relation(fields: [ownerId], references: [id])
+  members WorkspaceMember[]
+  Project Project[]
+}
+
+model WorkspaceMember {
+  id          Int    @id @default(autoincrement())
+  userId      Int
+  workspaceId Int
+  role        String @default("MEMBER") // OWNER | MEMBER | VIEWER
+
+  user      User      @relation(fields: [userId], references: [id])
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+}
+
+model Project {
+  id          Int      @id @default(autoincrement())
+  name        String
+  workspaceId Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace           @relation(fields: [workspaceId], references: [id])
+  members   ProjectMembership[]
+  tasks     Task[]
+}
+
+model ProjectMembership {
+  id        Int    @id @default(autoincrement())
+  projectId Int
+  userId    Int
+  role      String @default("CONTRIBUTOR") // LEAD | CONTRIBUTOR | VIEWER
+
+  user    User    @relation(fields: [userId], references: [id])
+  project Project @relation(fields: [projectId], references: [id])
+}
+
+model Task {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  status      String   @default("TODO") // TODO | IN_PROGRESS | DONE
+  projectId   Int
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  project       Project        @relation(fields: [projectId], references: [id])
+  assignees     TaskAssignee[]
+  notifications Notification[]
+}
+
+model TaskAssignee {
+  id     Int @id @default(autoincrement())
+  taskId Int
+  userId Int
+
+  task Task @relation(fields: [taskId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+}
+
+model Notification {
+  id            Int      @id @default(autoincrement())
+  title         String
+  body          String
+  recipientId   Int
+  status        String   @default("DELIVERED") // DELIVERED | SEEN
+  relatedTaskId Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  recipient   User  @relation(fields: [recipientId], references: [id])
+  relatedTask Task? @relation(fields: [relatedTaskId], references: [id])
+}
