@@ -1,6 +1,9 @@
 import { hash, compare } from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
+import { EventEmitter } from 'events';
+
+const ee = new EventEmitter();
 
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET!;
@@ -66,6 +69,24 @@ notifications: async (_parent: any, _args: any, context: { userId: number | null
       include: { relatedTask: true }
     });
   },
+
+  task: async (_parent: any, { taskId }: { taskId: number }, context: { userId: number | null }) => {
+  if (!context.userId) throw new Error("Unauthorized");
+
+  const task = await prisma.task.findUnique({
+    where: { id: taskId },
+    include: { assignees: { include: { user: true } }, notifications: true, project: true }
+  });
+  if (!task) throw new Error("Task not found");
+
+  // Check if user is member of project
+  const membership = await prisma.projectMembership.findFirst({
+    where: { projectId: task.projectId, userId: context.userId }
+  });
+  if (!membership) throw new Error("Forbidden");
+
+  return task;
+},
 
    tasksByStatus: async (
     _parent: any,
@@ -226,24 +247,6 @@ createTask: async (
     });
   },
 
-  task: async (_parent: any, { taskId }: { taskId: number }, context: { userId: number | null }) => {
-  if (!context.userId) throw new Error("Unauthorized");
-
-  const task = await prisma.task.findUnique({
-    where: { id: taskId },
-    include: { assignees: { include: { user: true } }, notifications: true, project: true }
-  });
-  if (!task) throw new Error("Task not found");
-
-  // Check if user is member of project
-  const membership = await prisma.projectMembership.findFirst({
-    where: { projectId: task.projectId, userId: context.userId }
-  });
-  if (!membership) throw new Error("Forbidden");
-
-  return task;
-},
-
   assignTask: async (
   _parent: any,
   { taskId, userId }: { taskId: number; userId: number },
@@ -370,7 +373,43 @@ createTask: async (
     });
 
     return true;
-  }
+  },
+addTask: async (_: any, { input }: any, context: { userId: number | null }) => {
+  if (!context.userId) throw new Error("Unauthorized");
+
+  const project = await prisma.project.findUnique({ where: { id: input.projectId } });
+  if (!project) throw new Error("Project not found");
+
+  const membership = await prisma.projectMembership.findFirst({
+    where: { projectId: input.projectId, userId: context.userId }
+  });
+  if (!membership) throw new Error("Forbidden");
+
+  const newTask = await prisma.task.create({
+    data: input,
+    include: {
+      project: true,
+      assignees: { include: { user: true } },
+      notifications: true
+    }
+  });
+
+  ee.emit("TASK_ADDED", newTask);
+
+  return newTask;
+}
+
 
   },
+   Subscription: {
+    taskAdded: {
+      subscribe: async function* () {
+        while (true) {
+          yield await new Promise(resolve =>
+            ee.once('TASK_ADDED', (task) => resolve({ taskAdded: task }))
+          );
+        }
+      }
+    }
+  }
 };

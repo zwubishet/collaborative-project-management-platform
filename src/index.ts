@@ -1,45 +1,66 @@
-import express from 'express';
-import { ApolloServer } from 'apollo-server-express';
-import cors from 'cors';
-import dotenv from 'dotenv';
-import jwt from 'jsonwebtoken';
-import { typeDefs } from './graphql/schema';
-import { resolvers } from './graphql/resolvers';
-
-dotenv.config();
+import { ApolloServer } from "apollo-server-express";
+import express from "express";
+import http from "http";
+import jwt from "jsonwebtoken";
+import { makeExecutableSchema } from "@graphql-tools/schema";
+import { useServer } from "graphql-ws/lib/use/ws";
+import { WebSocketServer } from "ws";
+import { typeDefs } from "./graphql/schema";
+import {resolvers} from "./graphql/resolvers";
 
 const app = express();
-app.use(cors()); // keep CORS if needed
+const httpServer = http.createServer(app);
 
-const PORT = process.env.PORT || 4000;
-const JWT_SECRET = process.env.JWT_SECRET!;
+const schema = makeExecutableSchema({ typeDefs, resolvers });
 
-async function startServer() {
-  const server = new ApolloServer({
-    typeDefs,
-    resolvers,
-    context: ({ req }) => {
-      const authHeader = req.headers.authorization || '';
-      const token = authHeader.replace('Bearer ', '');
+// Create WebSocket server
+const wsServer = new WebSocketServer({
+  server: httpServer,
+  path: "/graphql",
+});
+
+// Attach subscriptions
+useServer(
+  {
+    schema,
+    context: (ctx, msg, args) => {
+      const auth = (ctx.connectionParams as any)?.authorization;
+      const token = typeof auth === "string" ? auth.split(" ")[1] : undefined;
       if (!token) return { userId: null };
-
       try {
-        const payload: any = jwt.verify(token, JWT_SECRET);
+        const payload: any = jwt.verify(token, process.env.JWT_SECRET!);
         return { userId: payload.userId };
       } catch {
         return { userId: null };
       }
     },
-  });
+  },
+  wsServer
+);
 
-  await server.start();
-  server.applyMiddleware({ app, path: '/graphql' });
 
-  app.get('/', (_, res) => res.send('Backend running with Bun + Express + Apollo! 🚀'));
+// Apollo server
+const server = new ApolloServer({
+  schema,
+  introspection: true,
+  context: ({ req }) => {
+    const token = req.headers.authorization?.split(" ")[1]; // "Bearer <token>"
+    if (!token) return { userId: null };
 
-  app.listen(PORT, () => {
-    console.log(`✅ Server ready at http://localhost:${PORT}${server.graphqlPath}`);
-  });
-}
+    try {
+      const payload: any = jwt.verify(token, process.env.JWT_SECRET!);
+      return { userId: payload.userId };
+    } catch {
+      return { userId: null };
+    }
+  },
+});
 
-startServer();
+await server.start();
+server.applyMiddleware({ app });
+
+const PORT = process.env.PORT || 4000;
+httpServer.listen(PORT, () => {
+  console.log(`🚀 Server running on http://localhost:${PORT}${server.graphqlPath}`);
+  console.log(`📡 Subscriptions ready at ws://localhost:${PORT}${server.graphqlPath}`);
+});
