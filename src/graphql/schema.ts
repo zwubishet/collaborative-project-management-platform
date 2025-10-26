@@ -26,11 +26,14 @@ export  const typeDefs = gql`
     user: User!
   }
 
+
   type Query {
     me: User
     myWorkspaces: [Workspace!]!
     workspace(id: Int!): Workspace
   }
+  
+
   
   type Project {
   id: Int!
@@ -108,8 +111,9 @@ extend type Mutation {
 }
 
 type Subscription {
-  taskAdded: Task
+  taskAdded: Task!
 }
+
   input AddTaskInput {
   title: String!
   description: String
