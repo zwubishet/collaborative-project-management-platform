@@ -2,6 +2,7 @@ import { hash, compare } from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
 import { EventEmitter } from 'events';
+import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/token';
 
 const ee = new EventEmitter();
 const prisma = new PrismaClient();
@@ -9,7 +10,7 @@ const JWT_SECRET = process.env.ACCESS_TOKEN_SECRET!;
 
 export const resolvers = {
   Query: {
-    me: async (_parent: any, _args: any, context: { userId: number | null }) => {
+     me: async (_parent: any, _args: any, context: { userId: number | null }) => {
       if (!context.userId) return null;
       return prisma.user.findUnique({ where: { id: context.userId } });
     },
@@ -104,20 +105,89 @@ export const resolvers = {
   },
 
   Mutation: {
-    register: async (_parent: any, { name, email, password }: any) => {
+     register: async (_parent: any, { name, email, password }: any) => {
       const hashed = await hash(password, 10);
       return prisma.user.create({ data: { name, email, password: hashed } });
     },
 
-    login: async (_parent: any, { email, password }: any) => {
+login: async (_parent: any, { email, password }: any, context: { res: any }) => {
       const user = await prisma.user.findUnique({ where: { email } });
-      if (!user) throw new Error('User not found');
+      if (!user) throw new Error("User not found");
 
       const valid = await compare(password, user.password);
-      if (!valid) throw new Error('Invalid password');
+      if (!valid) throw new Error("Invalid password");
 
-      const accessToken = jwt.sign({ userId: user.id }, JWT_SECRET, { expiresIn: '15m' });
+      const accessToken = generateAccessToken(user.id);
+      const refreshToken = generateRefreshToken(user.id);
+
+      // Store refresh token in DB
+      await prisma.userDevice.create({
+        data: {
+          userId: user.id,
+          refreshToken,
+          ipAddress: context.res.req.ip,
+          userAgent: context.res.req.headers["user-agent"],
+        },
+      });
+
+      // Set refresh token as HttpOnly cookie
+      context.res.cookie("refreshToken", refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
+        path: "/auth/refresh",
+      });
+
       return { accessToken, user };
+    },
+
+     logout: async (_parent: any, _args: any, context: { req: any; res: any }) => {
+      const refreshToken = context.req.cookies.refreshToken;
+      if (refreshToken) {
+        await prisma.userDevice.updateMany({
+          where: { refreshToken },
+          data: { isRevoked: true },
+        });
+      }
+      context.res.clearCookie("refreshToken", { path: "/auth/refresh" });
+      return true;
+    },
+
+    refreshToken: async (_parent: any, _args: any, context: { req: any; res: any }) => {
+      const refreshToken = context.req.cookies.refreshToken;
+      if (!refreshToken) return null;
+
+      const device = await prisma.userDevice.findUnique({ where: { refreshToken } });
+      if (!device || device.isRevoked) return null;
+
+      try {
+        const payload: any = verifyRefreshToken(refreshToken);
+
+        // Rotate refresh token
+        await prisma.userDevice.updateMany({ where: { refreshToken }, data: { isRevoked: true } });
+        const newAccessToken = generateAccessToken(payload.userId);
+        const newRefreshToken = generateRefreshToken(payload.userId);
+
+        await prisma.userDevice.create({
+          data: {
+            userId: payload.userId,
+            refreshToken: newRefreshToken,
+            ipAddress: context.req.ip,
+            userAgent: context.req.headers["user-agent"],
+          },
+        });
+
+        context.res.cookie("refreshToken", newRefreshToken, {
+          httpOnly: true,
+          secure: process.env.NODE_ENV === "production",
+          sameSite: "strict",
+          path: "/auth/refresh",
+        });
+
+        return { accessToken: newAccessToken };
+      } catch {
+        return null;
+      }
     },
 
     createWorkspace: async (_parent: any, { name }: { name: string }, context: { userId: number | null }) => {
