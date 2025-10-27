@@ -63,11 +63,14 @@ bun run start
 
 ## Screenshots
 
-**1. User Login / Register**  
-![Login Screenshot](screenshots/login.png)
+**1. User Login**  
+![Login Screenshot](screenshots/login.PNG)
+
+**1.1. User Register**  
+![Login Screenshot](screenshots/register.PNG)
 
 **2. Workspace Dashboard**  
-![Workspace Screenshot](screenshots/workspace.png)
+![Workspace Screenshot](screenshots/workspace.PNG)
 
 **3. Project View**  
 ![Project Screenshot](screenshots/project.png)
