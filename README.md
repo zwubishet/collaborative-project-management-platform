@@ -1,7 +1,7 @@
 # Collaboration Project Management System
 
 ## Description
-A full-stack project management system built with **React, Flutter, Node.js, PostgreSQL, and GraphQL**, allowing users to manage workspaces, projects, tasks, and notifications in real-time with subscriptions.
+A full-stack project management system built with **Bun, PostgreSQL, and GraphQL**, allowing users to manage workspaces, projects, tasks, and notifications in real-time with subscriptions.
 
 ---
 
