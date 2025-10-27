@@ -24,7 +24,20 @@ model User {
   ProjectMembership ProjectMembership[]
   TaskAssignee      TaskAssignee[]
   Notification      Notification[]
+   devices UserDevice[]
 }
+
+model UserDevice {
+  id           Int      @id @default(autoincrement())
+  user         User     @relation(fields: [userId], references: [id])
+  userId       Int
+  refreshToken String   @unique
+  ipAddress    String?
+  userAgent    String?
+  loginTime    DateTime @default(now())
+  isRevoked    Boolean  @default(false)
+}
+
 
 
 

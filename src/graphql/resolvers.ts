@@ -5,7 +5,7 @@ import { EventEmitter } from 'events';
 
 const ee = new EventEmitter();
 const prisma = new PrismaClient();
-const JWT_SECRET = process.env.JWT_SECRET!;
+const JWT_SECRET = process.env.ACCESS_TOKEN_SECRET!;
 
 export const resolvers = {
   Query: {
