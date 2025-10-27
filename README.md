@@ -98,5 +98,5 @@ bun run start
 
 ## Author
 **Wubishet Wudu** – Full Stack Developer  
-Portfolio: <your-portfolio-link>  
-GitHub: <your-github-link>
+Portfolio: https://wubishet-wudu.vercel.com
+GitHub: https://github.com/zwubishet
