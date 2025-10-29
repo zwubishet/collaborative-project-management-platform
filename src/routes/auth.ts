@@ -12,7 +12,7 @@ const cookieOptions = {
   httpOnly: true,
   secure: process.env.NODE_ENV === "production",
   sameSite: "strict" as const,
-  path: "/auth/refresh", // cookie only sent to /auth/refresh
+  path: "/",
 };
 
 // --- REGISTER ---

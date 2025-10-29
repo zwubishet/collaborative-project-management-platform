@@ -111,35 +111,33 @@ export const resolvers = {
     },
 
 login: async (_parent: any, { email, password }: any, context: { res: any }) => {
-      const user = await prisma.user.findUnique({ where: { email } });
-      if (!user) throw new Error("User not found");
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user) throw new Error("User not found");
 
-      const valid = await compare(password, user.password);
-      if (!valid) throw new Error("Invalid password");
+  const valid = await compare(password, user.password);
+  if (!valid) throw new Error("Invalid password");
 
-      const accessToken = generateAccessToken(user.id);
-      const refreshToken = generateRefreshToken(user.id);
+  const accessToken = generateAccessToken(user.id);
+  const refreshToken = generateRefreshToken(user.id);
 
-      // Store refresh token in DB
-      await prisma.userDevice.create({
-        data: {
-          userId: user.id,
-          refreshToken,
-          ipAddress: context.res.req.ip,
-          userAgent: context.res.req.headers["user-agent"],
-        },
-      });
-
-      // Set refresh token as HttpOnly cookie
-      context.res.cookie("refreshToken", refreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "strict",
-        path: "/auth/refresh",
-      });
-
-      return { accessToken, user };
+  await prisma.userDevice.create({
+    data: {
+      userId: user.id,
+      refreshToken,
+      ipAddress: context.res.req.ip,
+      userAgent: context.res.req.headers["user-agent"],
     },
+  });
+
+  context.res.cookie("refreshToken", refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    path: "/", // ← Also fix path here (see below)
+  });
+
+  return { accessToken, user }; // ← Matches AuthPayload
+},
 
      logout: async (_parent: any, _args: any, context: { req: any; res: any }) => {
       const refreshToken = context.req.cookies.refreshToken;

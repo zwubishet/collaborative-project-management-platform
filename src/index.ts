@@ -11,12 +11,12 @@ import { typeDefs } from "./graphql/schema";
 import { resolvers } from "./graphql/resolvers";
 import { PrismaClient } from "@prisma/client";
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from "./utils/token";
+import { ApolloServerPluginLandingPageGraphQLPlayground } from "apollo-server-core";
 
 const prisma = new PrismaClient();
 const app = express();
 const httpServer = http.createServer(app);
 
-// Middleware
 app.use(cookieParser());
 app.use("/auth", express.json(), authRouter);
 
@@ -29,7 +29,6 @@ const wsServer = new WebSocketServer({
   path: "/graphql",
 });
 
-// GraphQL subscriptions context
 useServer(
   {
     schema,
@@ -48,22 +47,24 @@ useServer(
   wsServer
 );
 
-// Apollo server with automatic cookie refresh support
+// Apollo server
 const server = new ApolloServer({
   schema,
   introspection: true,
+  plugins: [
+    ApolloServerPluginLandingPageGraphQLPlayground(), // ← Now real!
+  ],
   context: async ({ req, res }) => {
     let userId: number | null = null;
 
-    // Check access token
     const authHeader = req.headers.authorization;
     const token = authHeader?.split(" ")[1];
+
     if (token) {
       try {
         const payload: any = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET!);
         userId = payload.userId;
       } catch {
-        // Access token expired, try refresh token from cookie
         const refreshToken = req.cookies.refreshToken;
         if (refreshToken) {
           const device = await prisma.userDevice.findUnique({ where: { refreshToken } });
@@ -71,11 +72,11 @@ const server = new ApolloServer({
             try {
               const payload: any = verifyRefreshToken(refreshToken);
 
-              // Rotate refresh token
               await prisma.userDevice.updateMany({
                 where: { refreshToken },
                 data: { isRevoked: true },
               });
+
               const newAccessToken = generateAccessToken(payload.userId);
               const newRefreshToken = generateRefreshToken(payload.userId);
 
@@ -88,18 +89,15 @@ const server = new ApolloServer({
                 },
               });
 
-              // Set new refresh token cookie
               res.cookie("refreshToken", newRefreshToken, {
                 httpOnly: true,
                 secure: process.env.NODE_ENV === "production",
                 sameSite: "strict",
-                path: "/auth/refresh",
+                path: "/",
               });
 
-              userId = payload.userId;
-
-              // Optionally send new access token in header
               res.setHeader("x-access-token", newAccessToken);
+              userId = payload.userId;
             } catch {
               userId = null;
             }
@@ -113,11 +111,19 @@ const server = new ApolloServer({
 });
 
 await server.start();
-server.applyMiddleware({ app });
+server.applyMiddleware({
+  app,
+  cors: {
+    origin: [
+      "http://localhost:5173",
+      "https://studio.apollographql.com",
+    ],
+    credentials: true,
+  },
+});
 
-// Start HTTP + WS server
 const PORT = process.env.PORT || 4000;
 httpServer.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}${server.graphqlPath}`);
-  console.log(`📡 Subscriptions ready at ws://localhost:${PORT}${server.graphqlPath}`);
+  console.log(`Server running on http://localhost:${PORT}${server.graphqlPath}`);
+  console.log(`Subscriptions ready at ws://localhost:${PORT}${server.graphqlPath}`);
 });
