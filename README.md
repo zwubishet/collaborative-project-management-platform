@@ -1,7 +1,7 @@
 # Collaboration Project Management System
 
 ## Description
-A full-stack project management system built with **React, Flutter, Node.js, PostgreSQL, and GraphQL**, allowing users to manage workspaces, projects, tasks, and notifications in real-time with subscriptions.
+A full-stack project management system built with **Bun, PostgreSQL, and GraphQL**, allowing users to manage workspaces, projects, tasks, and notifications in real-time with subscriptions.
 
 ---
 
@@ -63,8 +63,11 @@ bun run start
 
 ## Screenshots
 
-**1. User Login / Register**  
+**1. User Login**  
 ![Login Screenshot](screenshots/login.png)
+
+**1.1. User Register**  
+![Login Screenshot](screenshots/register.png)
 
 **2. Workspace Dashboard**  
 ![Workspace Screenshot](screenshots/workspace.png)
@@ -95,5 +98,5 @@ bun run start
 
 ## Author
 **Wubishet Wudu** – Full Stack Developer  
-Portfolio: <your-portfolio-link>  
-GitHub: <your-github-link>
+Portfolio: https://wubishet-wudu.vercel.com
+GitHub: https://github.com/zwubishet
