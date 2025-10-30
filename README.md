@@ -75,11 +75,6 @@ bun run start
 **3. Project View**  
 ![Project Screenshot](screenshots/project.png)
 
-**4. Task Management**  
-![Tasks Screenshot](screenshots/tasks.png)
-
-**5. Notifications**  
-![Notifications Screenshot](screenshots/notifications.png)
 
 ---
 
