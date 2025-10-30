@@ -13,6 +13,7 @@ import { PrismaClient } from "@prisma/client";
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from "./utils/token";
 import { ApolloServerPluginLandingPageGraphQLPlayground } from "apollo-server-core";
 import dotenv from "dotenv";
+import cors from "cors";
 
 dotenv.config();
 
@@ -23,6 +24,12 @@ const httpServer = http.createServer(app);
 
 app.use(cookieParser());
 app.use("/auth", express.json(), authRouter);
+app.use(
+  cors({
+    origin: "http://localhost:5173", // your frontend
+    credentials: true, // needed if you use cookies
+  })
+);
 
 // GraphQL schema
 const schema = makeExecutableSchema({ typeDefs, resolvers });

@@ -121,10 +121,11 @@ workspace: async (_parent: any, { id }: { id: number }, context: { userId: numbe
   },
 
   Mutation: {
-     register: async (_parent: any, { name, email, password }: any) => {
-      const hashed = await hash(password, 10);
-      return prisma.user.create({ data: { name, email, password: hashed } });
-    },
+     register: async (_: any, { name, email, password }: any) => {
+    const user = await prisma.user.create({ data: { name, email, password } });
+    const accessToken = generateAccessToken(user.id);
+    return { accessToken, user };
+  },
 
 login: async (_parent: any, { email, password }: any, context: { res: any }) => {
   const user = await prisma.user.findUnique({ where: { email } });

@@ -11,7 +11,7 @@ export const typeDefs = gql`
   }
   type Query {
   users: [User!]!
-}
+  }
 
 
   type AuthPayload {
@@ -96,7 +96,7 @@ export const typeDefs = gql`
   }
 
   type Mutation {
-    register(name: String!, email: String!, password: String!): User!
+    register(name: String!, email: String!, password: String!): AuthPayload!
     login(email: String!, password: String!): AuthPayload!
     sendResetPassword(email: String!): Boolean!
     resetPassword(token: String!, newPassword: String!): Boolean!
