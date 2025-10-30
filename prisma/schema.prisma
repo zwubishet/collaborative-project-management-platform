@@ -44,13 +44,13 @@ model UserDevice {
 model Workspace {
   id        Int      @id @default(autoincrement())
   name      String
+  description String?
   ownerId   Int
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
   owner   User              @relation(fields: [ownerId], references: [id])
   members WorkspaceMember[]
-  Project Project[]
+  projects Project[]
 }
 
 model WorkspaceMember {

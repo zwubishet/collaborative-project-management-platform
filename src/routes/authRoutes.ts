@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from "../utils/token";
 import { authMiddleware } from "../middleware/AuthMiddleware";
-import {userRegister, userLogin, refreshTokenHandler, userLogout, userProfile} from "../controller/authentication";
+import {userRegister, userLogin, refreshTokenHandler, userLogout, userProfile} from "../controller/authenticationController";
 
 export const prisma = new PrismaClient();
 export const authRouter = Router();

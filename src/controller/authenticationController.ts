@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { prisma } from "../routes/auth";
+import { prisma } from "../routes/authRoutes";
 import bcrypt from "bcryptjs";
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from "../utils/token";
 

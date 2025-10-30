@@ -3,7 +3,7 @@ import express from "express";
 import http from "http";
 import jwt from "jsonwebtoken";
 import cookieParser from "cookie-parser";
-import { authRouter } from "./routes/auth";
+import { authRouter } from "./routes/authRoutes";
 import { makeExecutableSchema } from "@graphql-tools/schema";
 import { useServer } from "graphql-ws/lib/use/ws";
 import { WebSocketServer } from "ws";
@@ -26,7 +26,7 @@ const schema = makeExecutableSchema({ typeDefs, resolvers });
 // WebSocket server for subscriptions
 const wsServer = new WebSocketServer({
   server: httpServer,
-  path: "/graphql",
+  path: "/subscriptions",
 });
 
 useServer(

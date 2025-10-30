@@ -23,13 +23,21 @@ export const resolvers = {
       });
     },
 
-    workspace: async (_parent: any, { id }: { id: number }, context: { userId: number | null }) => {
-      if (!context.userId) throw new Error('Unauthorized');
-      return prisma.workspace.findUnique({
-        where: { id },
-        include: { owner: true, members: { include: { user: true } } },
-      });
+workspace: async (_parent: any, { id }: { id: number }, context: { userId: number | null }) => {
+  if (!context.userId) throw new Error('Unauthorized');
+  return prisma.workspace.findUnique({
+    where: { id },
+    include: {
+      owner: true,
+      members: { include: { user: true } },
+      Project: true,
+      // Project: {
+      //       select: { id: true, name: true },
+      //     },
     },
+  });
+},
+
 
     workspaceProjects: async (_parent: any, { workspaceId }: { workspaceId: number }, context: { userId: number | null }) => {
       if (!context.userId) throw new Error("Unauthorized");
@@ -38,7 +46,8 @@ export const resolvers = {
 
       return prisma.project.findMany({
         where: { workspaceId },
-        include: { members: { include: { user: true } }, tasks: true }
+        include: { 
+          members: { include: { user: true } }, tasks: true }
       });
     },
 
@@ -46,12 +55,14 @@ export const resolvers = {
       if (!context.userId) throw new Error("Unauthorized");
       const project = await prisma.project.findUnique({
         where: { id: projectId },
-        include: { members: { include: { user: true } }, tasks: true }
+        include: { 
+          workspace: true,
+          members: { include: { user: true } }, tasks: true }
       });
       if (!project) throw new Error("Project not found");
 
-      const membership = await prisma.projectMembership.findFirst({
-        where: { projectId, userId: context.userId }
+      const membership = await prisma.workspaceMember.findFirst({
+        where: { workspaceId: project.workspaceId, userId: context.userId }
       });
       if (!membership) throw new Error("Forbidden");
 
@@ -119,6 +130,13 @@ login: async (_parent: any, { email, password }: any, context: { res: any }) => 
 
   const accessToken = generateAccessToken(user.id);
   const refreshToken = generateRefreshToken(user.id);
+
+  const existingDevice = await prisma.userDevice.findUnique({
+    where: { refreshToken },
+  });
+  if (existingDevice) {
+    await prisma.userDevice.delete({ where: { id: existingDevice.id } });
+  }
 
   await prisma.userDevice.create({
     data: {
@@ -188,13 +206,30 @@ login: async (_parent: any, { email, password }: any, context: { res: any }) => 
       }
     },
 
-    createWorkspace: async (_parent: any, { name }: { name: string }, context: { userId: number | null }) => {
-      if (!context.userId) throw new Error('Unauthorized');
-      return prisma.workspace.create({
-        data: { name, ownerId: context.userId, members: { create: { userId: context.userId, role: 'OWNER' } } },
-        include: { owner: true, members: { include: { user: true } } },
-      });
+   createWorkspace: async (
+  _parent: any,
+  args: { name: string; description?: string },
+  context: { userId: number | null }
+) => {
+  if (!context.userId) throw new Error("Unauthorized");
+
+  const { name, description } = args; // get description from args
+
+  return prisma.workspace.create({
+    data: {
+      name,
+      description,
+      ownerId: context.userId,
+      members: {
+        create: { userId: context.userId, role: "OWNER" },
+      },
     },
+    include: {
+      owner: true,
+      members: { include: { user: true } },
+    },
+  });
+},
 
     addMember: async (_parent: any, { workspaceId, userId, role }: any, context: { userId: number | null }) => {
       if (!context.userId) throw new Error("Unauthorized");

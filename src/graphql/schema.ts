@@ -16,8 +16,10 @@ export const typeDefs = gql`
   type Workspace {
     id: Int!
     name: String!
+    description: String
     owner: User!
     members: [WorkspaceMember!]!
+    projects: [Project]
   }
 
   type WorkspaceMember {
@@ -29,7 +31,7 @@ export const typeDefs = gql`
   type Project {
     id: Int!
     name: String!
-    workspace: Workspace!
+    workspace: Workspace
     members: [ProjectMembership!]!
     tasks: [Task!]!
     createdAt: String!
@@ -88,7 +90,7 @@ export const typeDefs = gql`
     login(email: String!, password: String!): AuthPayload!
     logout: Boolean!
     refreshToken: AuthPayload!
-    createWorkspace(name: String!): Workspace!
+    createWorkspace(name: String!, description: String!): Workspace!
     addMember(workspaceId: Int!, userId: Int!, role: String!): WorkspaceMember!
     updateMemberRole(workspaceId: Int!, userId: Int!, role: String!): WorkspaceMember!
     removeMember(workspaceId: Int!, userId: Int!): Boolean!
