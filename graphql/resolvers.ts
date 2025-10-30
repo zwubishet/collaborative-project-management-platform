@@ -1,7 +1,8 @@
-import { hash, compare } from 'bcryptjs';
+import bcrypt, { hash, compare } from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { PrismaClient } from '@prisma/client';
 import { EventEmitter } from 'events';
+import nodemailer from "nodemailer"; 
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/token';
 
 const ee = new EventEmitter();
@@ -10,6 +11,10 @@ const JWT_SECRET = process.env.ACCESS_TOKEN_SECRET!;
 
 export const resolvers = {
   Query: {
+    users: async (_parent: any, _args: any, ctx: { prisma: { user: { findMany: () => any; }; }; }) => {
+    return ctx.prisma.user.findMany();
+  },
+
      me: async (_parent: any, _args: any, context: { userId: number | null }) => {
       if (!context.userId) return null;
       return prisma.user.findUnique({ where: { id: context.userId } });
@@ -30,7 +35,7 @@ workspace: async (_parent: any, { id }: { id: number }, context: { userId: numbe
     include: {
       owner: true,
       members: { include: { user: true } },
-      Project: true,
+      projects: true,
       // Project: {
       //       select: { id: true, name: true },
       //     },
@@ -157,6 +162,55 @@ login: async (_parent: any, { email, password }: any, context: { res: any }) => 
   return { accessToken, user }; // ← Matches AuthPayload
 },
 
+ sendResetPassword: async (_: any, { email }: { email: string }) => {
+      const user = await prisma.user.findUnique({ where: { email } });
+      if (!user) return false;
+
+      // create a short-lived token for resetting password
+      const token = jwt.sign(
+        { userId: user.id },
+        process.env.RESET_PASSWORD_SECRET!,
+        { expiresIn: "1h" }
+      );
+
+      // send email with the reset link
+      const transporter = nodemailer.createTransport({
+        service: "Gmail", // or your SMTP server
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS,
+        },
+      });
+
+      const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
+
+      await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: email,
+        subject: "Reset your password",
+        html: `<p>Click <a href="${resetLink}">here</a> to reset your password. Link expires in 1 hour.</p>`,
+      });
+
+      return true;
+    },
+
+     resetPassword: async (_: any, { token, newPassword }: { token: string, newPassword: string }) => {
+    try {
+      const payload: any = jwt.verify(token, process.env.RESET_PASSWORD_SECRET!);
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+      await prisma.user.update({
+        where: { id: payload.userId },
+        data: { password: hashedPassword },
+      });
+
+      return true;
+    } catch (err) {
+      console.error("Reset password error:", err);
+      return false;
+    }
+  },
+
      logout: async (_parent: any, _args: any, context: { req: any; res: any }) => {
       const refreshToken = context.req.cookies.refreshToken;
       if (refreshToken) {
@@ -213,7 +267,7 @@ login: async (_parent: any, { email, password }: any, context: { res: any }) => 
 ) => {
   if (!context.userId) throw new Error("Unauthorized");
 
-  const { name, description } = args; // get description from args
+  const { name, description } = args;
 
   return prisma.workspace.create({
     data: {
@@ -231,44 +285,84 @@ login: async (_parent: any, { email, password }: any, context: { res: any }) => 
   });
 },
 
-    addMember: async (_parent: any, { workspaceId, userId, role }: any, context: { userId: number | null }) => {
-      if (!context.userId) throw new Error("Unauthorized");
-      const workspace = await prisma.workspace.findUnique({ where: { id: workspaceId } });
-      if (!workspace) throw new Error("Workspace not found");
-      if (workspace.ownerId !== context.userId) throw new Error("Only owner can add members");
-      return prisma.workspaceMember.create({ data: { workspaceId, userId, role }, include: { user: true } });
-    },
 
-    updateMemberRole: async (_parent: any, { workspaceId, userId, role }: any, context: { userId: number | null }) => {
-      if (!context.userId) throw new Error("Unauthorized");
-      const workspace = await prisma.workspace.findUnique({ where: { id: workspaceId } });
-      if (!workspace) throw new Error("Workspace not found");
-      if (workspace.ownerId !== context.userId) throw new Error("Only owner can update member roles");
+addMember: async (
+  _parent: any, 
+  { workspaceId, userId, role }: { workspaceId: number; userId: number; role: string },
+  context: { userId: number | null }
+) => {
+  if (!context.userId) throw new Error("Unauthorized");
 
-      const member = await prisma.workspaceMember.findFirst({ where: { workspaceId, userId } });
-      if (!member) throw new Error("Member not found");
-      return prisma.workspaceMember.update({ where: { id: member.id }, data: { role }, include: { user: true } });
-    },
+  // Fetch workspace
+  const workspace = await prisma.workspace.findUnique({ where: { id: workspaceId } });
+  if (!workspace) throw new Error("Workspace not found");
 
-    removeMember: async (_parent: any, { workspaceId, userId }: any, context: { userId: number | null }) => {
-      if (!context.userId) throw new Error("Unauthorized");
-      const workspace = await prisma.workspace.findUnique({ where: { id: workspaceId } });
-      if (!workspace) throw new Error("Workspace not found");
-      if (workspace.ownerId !== context.userId) throw new Error("Only owner can remove members");
+  // Only owner can add members
+  if (workspace.ownerId !== context.userId) throw new Error("Only owner can add members");
 
-      const member = await prisma.workspaceMember.findFirst({ where: { workspaceId, userId } });
-      if (!member) throw new Error("Member not found");
-      await prisma.workspaceMember.delete({ where: { id: member.id } });
-      return true;
-    },
+  // Check if user is already a member
+  const existingMember = await prisma.workspaceMember.findFirst({
+    where: { workspaceId, userId },
+  });
+  if (existingMember) throw new Error("User is already a member");
 
-    createProject: async (_parent: any, { workspaceId, name }: any, context: { userId: number | null }) => {
+  // Add member
+  return prisma.workspaceMember.create({
+    data: { workspaceId, userId, role },
+    include: { user: true },
+  });
+},
+
+
+updateMemberRole: async (
+  _parent: any,
+  { workspaceId, userId, role }: { workspaceId: number; userId: number; role: string },
+  context: { userId: number | null }
+) => {
+  if (!context.userId) throw new Error("Unauthorized");
+
+  const workspace = await prisma.workspace.findUnique({ where: { id: workspaceId } });
+  if (!workspace) throw new Error("Workspace not found");
+
+  if (workspace.ownerId !== context.userId) throw new Error("Only owner can update member roles");
+
+  const member = await prisma.workspaceMember.findFirst({ where: { workspaceId, userId } });
+  if (!member) throw new Error("Member not found");
+
+  return prisma.workspaceMember.update({
+    where: { id: member.id },
+    data: { role },
+    include: { user: true },
+  });
+},
+
+removeMember: async (
+  _parent: any,
+  { workspaceId, userId }: { workspaceId: number; userId: number },
+  context: { userId: number | null }
+) => {
+  if (!context.userId) throw new Error("Unauthorized");
+
+  const workspace = await prisma.workspace.findUnique({ where: { id: workspaceId } });
+  if (!workspace) throw new Error("Workspace not found");
+
+  // Only owner can remove members
+  if (workspace.ownerId !== context.userId) throw new Error("Only owner can remove members");
+
+  const member = await prisma.workspaceMember.findFirst({ where: { workspaceId, userId } });
+  if (!member) throw new Error("Member not found");
+
+  await prisma.workspaceMember.delete({ where: { id: member.id } });
+  return true;
+},
+
+    createProject: async (_parent: any, {workspaceId, name, description, status } : any, context: { userId: number | null }) => {
       if (!context.userId) throw new Error("Unauthorized");
       const workspace = await prisma.workspace.findUnique({ where: { id: workspaceId } });
       if (!workspace) throw new Error("Workspace not found");
       if (workspace.ownerId !== context.userId) throw new Error("Only workspace owner can create projects");
 
-      return prisma.project.create({ data: { name, workspaceId }, include: { members: true, tasks: true } });
+      return prisma.project.create({ data: { name, workspaceId, description, status}, include: { members: true, tasks: true } });
     },
 
     addProjectMember: async (_parent: any, { projectId, userId, role }: any, context: { userId: number | null }) => {
@@ -300,9 +394,12 @@ login: async (_parent: any, { email, password }: any, context: { res: any }) => 
 
       // const membership = await prisma.projectMembership.findFirst({ where: { projectId: input.projectId, userId: context.userId } });
       // if (!membership) throw new Error("Forbidden");
-
+        let dueDate = input.dueDate;
+        if (dueDate && !dueDate.includes("T")) {
+          dueDate = new Date(dueDate).toISOString();
+        }
       const newTask = await prisma.task.create({
-        data: { title: input.title, description: input.description, project: { connect: { id: input.projectId } } },
+        data: { title: input.title, description: input.description, priority: input.priority, dueDate: dueDate, status: input.status, project: { connect: { id: input.projectId } } },
         include: { project: true, assignees: { include: { user: true } }, notifications: true }
       });
 
@@ -368,6 +465,29 @@ login: async (_parent: any, { email, password }: any, context: { res: any }) => 
       ee.emit("TASK_UNASSIGNED", { taskId, userId });
       return true;
     },
+
+    assignTaskMember: async (_: any, { taskId, userId }: any, { prisma }: any) => {
+  return await prisma.task.update({
+  where: { id: taskId },
+  data: {
+    assignees: {
+      create: { id: userId }
+    }
+  }
+});
+
+},
+
+removeTaskMember: async (_: any, { taskId, userId }: any, { prisma }: any) => {
+  return prisma.task.update({
+    where: { id: taskId },
+    data: {
+      assignees: { disconnect: { id: userId } },
+    },
+    include: { assignees: true },
+  });
+},
+
 
     markNotificationSeen: async (_parent: any, { notificationId }: { notificationId: number }, context: { userId: number | null }) => {
       if (!context.userId) throw new Error("Unauthorized");

@@ -4,7 +4,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "bun run src/index.ts",
+    "dev": "bun run index.ts",
     "test": "bun test"
   },
   "devDependencies": {
@@ -22,6 +22,7 @@
   "dependencies": {
     "@prisma/client": "^6.18.0",
     "@types/jest": "^30.0.0",
+    "@types/nodemailer": "^7.0.3",
     "apollo-server-express": "^3.13.0",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^3.0.2",
@@ -33,6 +34,7 @@
     "graphql-ws": "^5.10.0",
     "jest": "^30.2.0",
     "jsonwebtoken": "^9.0.2",
+    "nodemailer": "^7.0.10",
     "pg": "^8.16.3",
     "prisma": "^6.18.0",
     "subscriptions": "^1.0.0-beta.5-17",

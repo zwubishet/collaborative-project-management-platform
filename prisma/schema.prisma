@@ -66,6 +66,8 @@ model WorkspaceMember {
 model Project {
   id          Int      @id @default(autoincrement())
   name        String
+  description String?
+  status      String   @default("ACTIVE")
   workspaceId Int
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -89,7 +91,9 @@ model Task {
   id          Int      @id @default(autoincrement())
   title       String
   description String?
-  status      String   @default("TODO") // TODO | IN_PROGRESS | DONE
+  status      String   @default("TODO")
+  priority    String   @default("MEDIUM") // LOW | MEDIUM | HIGH
+  dueDate     DateTime?
   projectId   Int
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

@@ -12,6 +12,10 @@ import { resolvers } from "./graphql/resolvers";
 import { PrismaClient } from "@prisma/client";
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from "./utils/token";
 import { ApolloServerPluginLandingPageGraphQLPlayground } from "apollo-server-core";
+import dotenv from "dotenv";
+
+dotenv.config();
+
 
 const prisma = new PrismaClient();
 const app = express();
@@ -106,7 +110,7 @@ const server = new ApolloServer({
       }
     }
 
-    return { userId, req, res };
+    return { prisma, userId, req, res };
   },
 });
 
